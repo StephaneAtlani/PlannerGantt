@@ -177,35 +177,37 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
-      <div className="mx-auto max-w-4xl space-y-6">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">Rétroplanning → Gantt</h1>
-          <p className="text-sm text-muted-foreground">
+    <div className="min-h-screen bg-background p-5 md:p-8 lg:p-10">
+      <div className="mx-auto max-w-5xl space-y-8">
+        <header className="space-y-1">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
+            Rétroplanning → Gantt
+          </h1>
+          <p className="text-muted-foreground text-base">
             Importez un fichier Excel (.xlsx). Aucune donnée n’est envoyée au serveur.
           </p>
-        </div>
+        </header>
 
         <FileUpload onFileSelect={handleFileSelect} disabled={loading} />
 
         {hasCached && !tasks.length && (
-          <Card className="p-4">
-            <p className="text-sm text-muted-foreground mb-2">Une planification est en cache pour cette session.</p>
-            <Button variant="outline" size="sm" onClick={loadFromCache}>
+          <Card className="rounded-2xl border border-border/80 bg-card p-5 shadow-sm">
+            <p className="text-muted-foreground mb-3 text-sm">Une planification est en cache pour cette session.</p>
+            <Button variant="outline" size="sm" className="rounded-lg" onClick={loadFromCache}>
               Reprendre la dernière planification
             </Button>
           </Card>
         )}
 
         {loading && (
-          <Card className="p-6">
-            <Skeleton className="h-8 w-48 mb-4" />
-            <Skeleton className="h-64 w-full" />
+          <Card className="rounded-2xl border border-border/80 bg-card p-6 shadow-sm">
+            <Skeleton className="mb-4 h-8 w-48 rounded-lg" />
+            <Skeleton className="h-64 w-full rounded-xl" />
           </Card>
         )}
 
         {error && (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="rounded-xl">
             <AlertTitle>Erreur</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
@@ -213,12 +215,12 @@ export default function Home() {
 
         {tasks.length > 0 && (
           <>
-            <div className="flex flex-wrap items-center gap-4">
-              <Button variant="outline" size="sm" onClick={handleClear}>
+            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border/70 bg-muted/40 p-3 shadow-sm">
+              <Button variant="outline" size="sm" className="rounded-lg shrink-0" onClick={handleClear}>
                 Effacer et recommencer
               </Button>
-              <Separator orientation="vertical" className="h-6" />
-              <div className="flex flex-wrap items-center gap-4">
+              <Separator orientation="vertical" className="h-6 shrink-0" />
+              <div className="flex flex-wrap items-center gap-3">
                 <Label className="flex items-center gap-2 text-sm">
                   <Switch
                     checked={displayOptions.showAssignments ?? true}
@@ -305,6 +307,7 @@ export default function Home() {
                 <Button
                   variant="outline"
                   size="sm"
+                  className="rounded-lg shrink-0"
                   onClick={() => setFullscreenOpen(true)}
                 >
                   <Maximize2 className="size-4 mr-1" />
@@ -315,7 +318,7 @@ export default function Home() {
                   showCloseButton={true}
                 >
                   <DialogTitle className="sr-only">Gantt en plein écran</DialogTitle>
-                  <div className="flex items-center justify-between gap-2 border-b px-4 py-2 bg-muted/30">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 bg-muted/40 px-4 py-3">
                     <div className="flex flex-wrap items-center gap-4">
                       <Label className="flex items-center gap-2 text-sm">
                         <Switch
@@ -403,7 +406,7 @@ export default function Home() {
                       variant="ghost"
                       size="sm"
                       onClick={() => setFullscreenOpen(false)}
-                      className="shrink-0"
+                      className="shrink-0 rounded-lg"
                     >
                       <XIcon className="size-4 mr-1" />
                       Fermer
@@ -421,12 +424,13 @@ export default function Home() {
                 </DialogContent>
               </Dialog>
             </div>
-            <Separator />
+            <div className="rounded-2xl border border-border/80 bg-card p-4 shadow-sm">
             <GanttChart
               tasks={sortedTasks}
               viewMode={viewMode}
               displayOptions={displayOptions}
             />
+            </div>
           </>
         )}
       </div>

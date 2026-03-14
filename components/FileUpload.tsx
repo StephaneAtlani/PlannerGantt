@@ -40,9 +40,9 @@ export function FileUpload({
   };
 
   return (
-    <Card className={cn("w-full", className)}>
-      <CardHeader>
-        <CardTitle>Importer un fichier</CardTitle>
+    <Card className={cn("w-full rounded-2xl border border-border/80 bg-card shadow-sm", className)}>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-lg font-semibold tracking-tight">Importer un fichier</CardTitle>
       </CardHeader>
       <CardContent>
         <input
@@ -57,12 +57,12 @@ export function FileUpload({
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           className={cn(
-            "flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-input bg-muted/30 px-6 py-10 transition-colors",
-            !disabled && "hover:border-primary/50 hover:bg-muted/50 cursor-pointer"
+            "flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed border-border bg-muted/30 px-8 py-12 transition-all duration-200",
+            !disabled && "hover:border-primary/40 hover:bg-muted/50 cursor-pointer"
           )}
           onClick={() => !disabled && inputRef.current?.click()}
         >
-          <p className="text-sm text-muted-foreground text-center">
+          <p className="text-muted-foreground text-center text-sm">
             Glissez un fichier .xlsx ici ou
           </p>
           <Button
@@ -70,6 +70,7 @@ export function FileUpload({
             variant="outline"
             size="sm"
             disabled={disabled}
+            className="rounded-lg"
             onClick={(e) => {
               e.stopPropagation();
               inputRef.current?.click();

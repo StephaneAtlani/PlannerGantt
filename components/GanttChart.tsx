@@ -101,10 +101,32 @@ function colorBarLabels(container: HTMLElement) {
   });
 }
 
+const BAR_LABEL_PADDING = 6;
+
+/** Force le texte des barres à droite (fin de la barre + padding). */
+function forceBarLabelsRight(container: HTMLElement) {
+  container.querySelectorAll(".bar-wrapper").forEach((wrapper) => {
+    const barGroup = wrapper.querySelector(".bar-group");
+    const bar = barGroup?.querySelector<SVGRectElement>("rect.bar");
+    const label = wrapper.querySelector<SVGTextElement>(".bar-label");
+    if (!bar || !label) return;
+    const bbox = bar.getBBox();
+    const endX = bbox.x + bbox.width;
+    const wantX = endX + BAR_LABEL_PADDING;
+    const curX = parseFloat(label.getAttribute("x") ?? "0");
+    if (Math.abs(curX - wantX) > 0.5) label.setAttribute("x", String(wantX));
+    label.setAttribute("text-anchor", "start");
+    label.classList.add("big");
+  });
+}
+
 /** Réapplique la colorisation quand la lib modifie le DOM (scroll/déplacement) */
 function observeAndRecolor(container: HTMLElement) {
   let rafId: number | null = null;
-  const run = () => colorBarLabels(container);
+  const run = () => {
+    colorBarLabels(container);
+    forceBarLabelsRight(container);
+  };
   const schedule = () => {
     if (rafId !== null) return;
     rafId = requestAnimationFrame(() => {
@@ -116,7 +138,7 @@ function observeAndRecolor(container: HTMLElement) {
     const needsRecolor = container.querySelector(".bar-label") && Array.from(container.querySelectorAll<SVGTextElement>(".bar-label")).some((el) => !el.querySelector("tspan") && (el.textContent ?? "").trim().length > 0);
     if (needsRecolor) schedule();
   });
-  observer.observe(container, { childList: true, subtree: true, characterData: true });
+      observer.observe(container, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["x", "width"] });
   return () => observer.disconnect();
 }
 
@@ -172,8 +194,9 @@ export function GanttChart({
       containerRef.current!.innerHTML = "";
       const { displayOptions: opts, viewMode: mode } = optsRef.current;
       const ganttTasks = tasks.map((t) => toGanttTask(t, opts));
+      // Toujours créer en "Day" puis changer la vue (évite bugs vue Week/Month à l’init)
       ganttRef.current = new Gantt(containerRef.current!, ganttTasks, {
-        view_mode: mode,
+        view_mode: "Day",
         bar_height: 32,
         popup_on: "click",
         popup: (ctx: {
@@ -187,9 +210,17 @@ export function GanttChart({
           ctx.set_details(buildPopupContent(ctx.task, optsRef.current.displayOptions));
         },
       });
+      if (mode !== "Day") {
+        try {
+          ganttRef.current.change_view_mode(mode, false);
+        } catch (_) {
+          // fallback: garder Day
+        }
+      }
       const runColorize = () => {
         if (!containerRef.current) return;
         colorBarLabels(containerRef.current);
+        forceBarLabelsRight(containerRef.current);
       };
       requestAnimationFrame(runColorize);
       setTimeout(runColorize, 120);
@@ -203,7 +234,23 @@ export function GanttChart({
       observerCleanupRef.current = null;
       ganttRef.current = null;
     };
-  }, [tasks, viewMode]);
+  }, [tasks]);
+
+  // Changement de vue (Jour / Semaine / Mois) : API du Gantt au lieu de recréer
+  useEffect(() => {
+    if (!ganttRef.current || !tasks.length) return;
+    try {
+      ganttRef.current.change_view_mode(viewMode, true);
+      requestAnimationFrame(() => {
+        if (containerRef.current) {
+          colorBarLabels(containerRef.current);
+          forceBarLabelsRight(containerRef.current);
+        }
+      });
+    } catch (_) {
+      // ignore
+    }
+  }, [viewMode]);
 
   // Changement de filtre : refresh sans recréer (évite l’animation complète)
   const showA = displayOptions?.showAssignments ?? true;
@@ -217,9 +264,10 @@ export function GanttChart({
     containerRef.current?.classList.add("gantt-no-transition");
     ganttRef.current.refresh(ganttTasks);
     colorBarLabels(containerRef.current!);
-    injectLabelTags(containerRef.current!, tasks, showL);
+    forceBarLabelsRight(containerRef.current!);
     const t = setTimeout(() => {
       containerRef.current?.classList.remove("gantt-no-transition");
+      containerRef.current && forceBarLabelsRight(containerRef.current);
     }, 50);
     return () => clearTimeout(t);
   }, [showA, showP, showB, showL]);
