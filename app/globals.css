@@ -137,8 +137,6 @@
 .gantt-container .upper-header,.gantt-container .lower-header{background:var(--g-header-background)}
 .gantt-container .gantt{flex:1;min-height:0}
 .gantt-container .bar-label{max-width:280px}
-.gantt .label-tags .gantt-label-tag{fill:var(--gantt-labels);stroke:var(--gantt-labels);stroke-width:1;opacity:.92}
-.gantt .label-tags text{fill:var(--g-text-light);font-family:inherit;font-size:10px}
 .gantt-container.gantt-no-transition,.gantt-container.gantt-no-transition *{transition:none!important}
 .gantt-container .popup-wrapper{position:absolute;top:0;left:0;background:var(--g-header-background);box-shadow:0 10px 24px -3px #0003;padding:10px;border-radius:5px;width:max-content;z-index:1000}
 .gantt-container .popup-wrapper .title{margin-bottom:2px;color:var(--g-text-dark);font-size:.85rem;font-weight:650;line-height:15px}
@@ -184,7 +182,8 @@
 .gantt .bar-invalid{fill:transparent;stroke:var(--g-bar-border);stroke-width:1;stroke-dasharray:5}
 .gantt .bar-invalid~.bar-label{fill:var(--g-text-light)}
 .gantt .bar-label{fill:var(--g-text-dark);dominant-baseline:central;font-family:Helvetica;font-size:13px;font-weight:400}
-.gantt .bar-label.big{fill:var(--g-text-dark);text-anchor:start}
+.gantt .bar-label.big{fill:var(--g-text-dark);text-anchor:start;font-size:12px}
+.gantt .bar-label tspan{font:inherit}
 .gantt .handle{fill:var(--g-handle-color);opacity:0;transition:opacity .3s ease}
 .gantt .handle.active,.gantt .handle.visible{cursor:ew-resize;opacity:1}
 .gantt .handle.progress{fill:var(--g-text-muted)}

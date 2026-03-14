@@ -76,68 +76,15 @@ const LABEL_SEP = " — ";
 const META_SEP = " · ";
 const LABEL_COLORS = ["var(--gantt-assignment)", "var(--gantt-priority)", "var(--gantt-bucket)", "var(--gantt-labels)"] as const;
 
-const TAG_HEIGHT = 14;
-const TAG_PAD = 4;
-const TAG_RX = 3;
-const NS = "http://www.w3.org/2000/svg";
-
-/** Injecte des pastilles (étiquettes) sur chaque barre du Gantt */
-function injectLabelTags(container: HTMLElement, tasks: Task[], showLabels: boolean) {
-  if (!showLabels) return;
-  const taskMap = new Map(tasks.map((t) => [t.id, t]));
-  container.querySelectorAll<SVGGElement>("g.bar-wrapper").forEach((barWrapper) => {
-    const taskId = barWrapper.getAttribute("data-id");
-    const task = taskId ? taskMap.get(taskId) : null;
-    if (!task?.labels) return;
-    const barGroup = barWrapper.querySelector<SVGGElement>(".bar-group");
-    const barRect = barGroup?.querySelector<SVGRectElement>("rect.bar");
-    if (!barGroup || !barRect) return;
-    barGroup.querySelectorAll(".label-tags").forEach((el) => el.remove());
-    const barX = parseFloat(barRect.getAttribute("x") ?? "0");
-    const barY = parseFloat(barRect.getAttribute("y") ?? "0");
-    const barW = parseFloat(barRect.getAttribute("width") ?? "0");
-    const barH = parseFloat(barRect.getAttribute("height") ?? "28");
-    const labels = task.labels.split(",").map((s) => s.trim()).filter(Boolean);
-    if (labels.length === 0) return;
-    const tagsG = document.createElementNS(NS, "g");
-    tagsG.setAttribute("class", "label-tags");
-    tagsG.setAttribute("transform", `translate(${barX + barW + 8},${barY + (barH - TAG_HEIGHT) / 2})`);
-    let xOff = 0;
-    labels.forEach((label) => {
-      const tagW = Math.min(100, Math.max(24, label.length * 5.5 + 10));
-      const g = document.createElementNS(NS, "g");
-      g.setAttribute("transform", `translate(${xOff},0)`);
-      const rect = document.createElementNS(NS, "rect");
-      rect.setAttribute("x", "0");
-      rect.setAttribute("y", "0");
-      rect.setAttribute("width", String(tagW));
-      rect.setAttribute("height", String(TAG_HEIGHT));
-      rect.setAttribute("rx", String(TAG_RX));
-      rect.setAttribute("ry", String(TAG_RX));
-      rect.setAttribute("class", "gantt-label-tag");
-      const text = document.createElementNS(NS, "text");
-      text.setAttribute("x", "5");
-      text.setAttribute("y", String(TAG_HEIGHT - 3));
-      text.setAttribute("font-size", "10");
-      text.setAttribute("fill", "currentColor");
-      text.textContent = label.length > 14 ? label.slice(0, 12) + "…" : label;
-      g.appendChild(rect);
-      g.appendChild(text);
-      tagsG.appendChild(g);
-      xOff += tagW + TAG_PAD;
-    });
-    barGroup.appendChild(tagsG);
-  });
-}
-
-/** Colorise le nom + affectation (bleu), priorité (orange), bucket (vert) dans les bar-label SVG */
+/** Colorise le nom + affectation (bleu), priorité (orange), bucket (vert), étiquettes (violet) — barres et colonne gauche (.bar-label.big) */
 function colorBarLabels(container: HTMLElement) {
   container.querySelectorAll<SVGTextElement>(".bar-label").forEach((textEl) => {
-    const full = textEl.textContent ?? "";
+    if (textEl.querySelector("tspan")) return; // déjà traité
+    const full = (textEl.textContent ?? "").trim();
+    if (!full) return;
     const idx = full.indexOf(LABEL_SEP);
-    if (idx < 0) return;
-    const name = full.slice(0, idx).trim();
-    const meta = full.slice(idx + LABEL_SEP.length).trim();
+    const name = idx >= 0 ? full.slice(0, idx).trim() : full;
+    const meta = idx >= 0 ? full.slice(idx + LABEL_SEP.length).trim() : "";
     textEl.textContent = "";
     const tspanName = document.createElementNS("http://www.w3.org/2000/svg", "tspan");
     tspanName.setAttribute("fill", "var(--g-text-dark)");
@@ -152,6 +99,25 @@ function colorBarLabels(container: HTMLElement) {
       textEl.appendChild(tspan);
     });
   });
+}
+
+/** Réapplique la colorisation quand la lib modifie le DOM (scroll/déplacement) */
+function observeAndRecolor(container: HTMLElement) {
+  let rafId: number | null = null;
+  const run = () => colorBarLabels(container);
+  const schedule = () => {
+    if (rafId !== null) return;
+    rafId = requestAnimationFrame(() => {
+      rafId = null;
+      run();
+    });
+  };
+  const observer = new MutationObserver(() => {
+    const needsRecolor = container.querySelector(".bar-label") && Array.from(container.querySelectorAll<SVGTextElement>(".bar-label")).some((el) => !el.querySelector("tspan") && (el.textContent ?? "").trim().length > 0);
+    if (needsRecolor) schedule();
+  });
+  observer.observe(container, { childList: true, subtree: true, characterData: true });
+  return () => observer.disconnect();
 }
 
 function buildPopupContent(
@@ -193,6 +159,7 @@ export function GanttChart({
 }: GanttChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const ganttRef = useRef<InstanceType<typeof import("frappe-gantt").default> | null>(null);
+  const observerCleanupRef = useRef<(() => void) | null>(null);
   const optsRef = useRef({ displayOptions, viewMode });
   optsRef.current = { displayOptions, viewMode };
 
@@ -220,14 +187,20 @@ export function GanttChart({
           ctx.set_details(buildPopupContent(ctx.task, optsRef.current.displayOptions));
         },
       });
-      requestAnimationFrame(() => {
-        colorBarLabels(containerRef.current!);
-        injectLabelTags(containerRef.current!, tasks, opts.showLabels ?? true);
-      });
+      const runColorize = () => {
+        if (!containerRef.current) return;
+        colorBarLabels(containerRef.current);
+      };
+      requestAnimationFrame(runColorize);
+      setTimeout(runColorize, 120);
+      observerCleanupRef.current?.();
+      observerCleanupRef.current = containerRef.current ? observeAndRecolor(containerRef.current) : null;
     };
 
     loadGantt();
     return () => {
+      observerCleanupRef.current?.();
+      observerCleanupRef.current = null;
       ganttRef.current = null;
     };
   }, [tasks, viewMode]);

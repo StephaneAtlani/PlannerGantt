@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { FileUpload } from "@/components/FileUpload";
 import {
   GanttChart,
@@ -88,6 +88,37 @@ const defaultDisplayOptions: GanttDisplayOptions = {
   showLabels: true,
 };
 
+export type SortBy = "start" | "end" | "name" | "assignedTo" | "priority" | "bucket";
+export type SortOrder = "asc" | "desc";
+
+function sortTasks(tasks: Task[], sortBy: SortBy, order: SortOrder): Task[] {
+  const dir = order === "asc" ? 1 : -1;
+  return [...tasks].sort((a, b) => {
+    let cmp = 0;
+    switch (sortBy) {
+      case "start":
+        cmp = a.start.getTime() - b.start.getTime();
+        break;
+      case "end":
+        cmp = a.end.getTime() - b.end.getTime();
+        break;
+      case "name":
+        cmp = (a.name ?? "").localeCompare(b.name ?? "", undefined, { sensitivity: "base" });
+        break;
+      case "assignedTo":
+        cmp = (a.assignedTo ?? "").localeCompare(b.assignedTo ?? "", undefined, { sensitivity: "base" });
+        break;
+      case "priority":
+        cmp = (a.priority ?? "").localeCompare(b.priority ?? "", undefined, { sensitivity: "base" });
+        break;
+      case "bucket":
+        cmp = (a.bucketName ?? "").localeCompare(b.bucketName ?? "", undefined, { sensitivity: "base" });
+        break;
+    }
+    return cmp * dir;
+  });
+}
+
 export default function Home() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
@@ -96,6 +127,10 @@ export default function Home() {
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
   const [displayOptions, setDisplayOptions] = useState<GanttDisplayOptions>(defaultDisplayOptions);
   const [viewMode, setViewMode] = useState<GanttViewMode>("Month");
+  const [sortBy, setSortBy] = useState<SortBy>("start");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
+
+  const sortedTasks = useMemo(() => sortTasks(tasks, sortBy, sortOrder), [tasks, sortBy, sortOrder]);
 
   const loadFromCache = useCallback(() => {
     const cached = loadCachedTasks();
@@ -103,6 +138,17 @@ export default function Home() {
       setTasks(cached);
       setError(null);
     }
+  }, []);
+
+  // Au montage (et après remontage Strict Mode) : restaurer le cache pour ne pas perdre le Gantt
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const cached = loadCachedTasks();
+    if (cached?.length) {
+      setTasks(cached);
+      setError(null);
+    }
+    setHasCached(!!sessionStorage.getItem(CACHE_KEY));
   }, []);
 
   useEffect(() => {
@@ -210,6 +256,33 @@ export default function Home() {
                   Étiquettes
                 </Label>
                 <div className="flex items-center gap-2">
+                  <Label htmlFor="sort-by" className="text-sm whitespace-nowrap">
+                    Trier par
+                  </Label>
+                  <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortBy)}>
+                    <SelectTrigger id="sort-by" className="w-36">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="start">Date de début</SelectItem>
+                      <SelectItem value="end">Date de fin</SelectItem>
+                      <SelectItem value="name">Nom</SelectItem>
+                      <SelectItem value="assignedTo">Affectation</SelectItem>
+                      <SelectItem value="priority">Priorité</SelectItem>
+                      <SelectItem value="bucket">Bucket</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={sortOrder} onValueChange={(v) => setSortOrder(v as SortOrder)}>
+                    <SelectTrigger className="w-28">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="asc">Croissant</SelectItem>
+                      <SelectItem value="desc">Décroissant</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2">
                   <Label htmlFor="view-mode" className="text-sm whitespace-nowrap">
                     Vue
                   </Label>
@@ -281,6 +354,33 @@ export default function Home() {
                         Étiquettes
                       </Label>
                       <div className="flex items-center gap-2">
+                        <Label htmlFor="sort-by-fs" className="text-sm whitespace-nowrap">
+                          Trier par
+                        </Label>
+                        <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortBy)}>
+                          <SelectTrigger id="sort-by-fs" className="w-36">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="start">Date de début</SelectItem>
+                            <SelectItem value="end">Date de fin</SelectItem>
+                            <SelectItem value="name">Nom</SelectItem>
+                            <SelectItem value="assignedTo">Affectation</SelectItem>
+                            <SelectItem value="priority">Priorité</SelectItem>
+                            <SelectItem value="bucket">Bucket</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Select value={sortOrder} onValueChange={(v) => setSortOrder(v as SortOrder)}>
+                          <SelectTrigger className="w-28">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="asc">Croissant</SelectItem>
+                            <SelectItem value="desc">Décroissant</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex items-center gap-2">
                         <Label htmlFor="view-mode-fs" className="text-sm whitespace-nowrap">
                           Vue
                         </Label>
@@ -311,7 +411,7 @@ export default function Home() {
                   </div>
                   <div className="flex-1 min-h-0 overflow-hidden">
                     <GanttChart
-                      tasks={tasks}
+                      tasks={sortedTasks}
                       viewMode={viewMode}
                       displayOptions={displayOptions}
                       fullscreen
@@ -323,7 +423,7 @@ export default function Home() {
             </div>
             <Separator />
             <GanttChart
-              tasks={tasks}
+              tasks={sortedTasks}
               viewMode={viewMode}
               displayOptions={displayOptions}
             />

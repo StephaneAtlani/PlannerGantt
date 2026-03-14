@@ -17,11 +17,15 @@ export const metadata: Metadata = {
   description: "Import Excel → Gantt interactif (aucune donnée sauvegardée)",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
+  ...rest
 }: Readonly<{
   children: React.ReactNode;
+  params?: Promise<Record<string, string | string[]>>;
 }>) {
+  // Next.js 16: params est une Promise — la résoudre pour éviter l’énumération par les DevTools
+  if ("params" in rest && rest.params) await rest.params;
   return (
     <html lang="en">
       <body
