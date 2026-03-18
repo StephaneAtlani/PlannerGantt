@@ -212,7 +212,7 @@ export function GanttChart({
       });
       if (mode !== "Day") {
         try {
-          ganttRef.current.change_view_mode(mode, false);
+          (ganttRef.current as any)?.change_view_mode?.(mode, false);
         } catch (_) {
           // fallback: garder Day
         }
@@ -240,7 +240,7 @@ export function GanttChart({
   useEffect(() => {
     if (!ganttRef.current || !tasks.length) return;
     try {
-      ganttRef.current.change_view_mode(viewMode, true);
+      (ganttRef.current as any)?.change_view_mode?.(viewMode, true);
       requestAnimationFrame(() => {
         if (containerRef.current) {
           colorBarLabels(containerRef.current);
