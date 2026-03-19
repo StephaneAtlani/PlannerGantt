@@ -38,6 +38,16 @@ interface GanttTaskPayload {
   bucketName?: string;
   priority?: string;
   labels?: string;
+  createdBy?: string;
+  createdAt?: string;
+  dueDate?: string;
+  isRecurring?: boolean;
+  isLate?: boolean;
+  completedAt?: string;
+  executedBy?: string;
+  checklistDone?: string;
+  checklistTotal?: string;
+  description?: string;
   originalName?: string;
   color?: string;
   color_progress?: string;
@@ -67,6 +77,16 @@ function toGanttTask(t: Task, displayOptions: GanttDisplayOptions): GanttTaskPay
     bucketName: t.bucketName,
     priority: t.priority,
     labels: t.labels,
+    createdBy: t.createdBy,
+    createdAt: t.createdAt ? format(t.createdAt, "yyyy-MM-dd") : undefined,
+    dueDate: t.dueDate ? format(t.dueDate, "yyyy-MM-dd") : undefined,
+    isRecurring: t.isRecurring,
+    isLate: t.isLate,
+    completedAt: t.completedAt ? format(t.completedAt, "yyyy-MM-dd") : undefined,
+    executedBy: t.executedBy,
+    checklistDone: t.checklistDone,
+    checklistTotal: t.checklistTotal,
+    description: t.description,
     color: barColor,
     color_progress: barColor ? `${barColor}99` : undefined,
   };
@@ -161,6 +181,16 @@ function buildPopupContent(
   if (displayOptions.showLabels && task.labels) {
     parts.push(`Étiquettes: ${task.labels}`);
   }
+  if (task.createdBy) parts.push(`Créé par: ${task.createdBy}`);
+  if (task.createdAt) parts.push(`Date de création: ${task.createdAt}`);
+  if (task.dueDate) parts.push(`Date d’échéance: ${task.dueDate}`);
+  if (typeof task.isRecurring === "boolean") parts.push(`Est périodique: ${task.isRecurring ? "Oui" : "Non"}`);
+  if (typeof task.isLate === "boolean") parts.push(`En retard: ${task.isLate ? "Oui" : "Non"}`);
+  if (task.completedAt) parts.push(`Date de fin: ${task.completedAt}`);
+  if (task.executedBy) parts.push(`Exécuté par: ${task.executedBy}`);
+  if (task.checklistDone) parts.push(`Checklist effectuée: ${task.checklistDone}`);
+  if (task.checklistTotal) parts.push(`Checklist totale: ${task.checklistTotal}`);
+  if (task.description) parts.push(`Description: ${task.description}`);
   return parts.join("<br/>");
 }
 

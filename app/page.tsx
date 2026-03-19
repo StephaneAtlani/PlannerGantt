@@ -38,6 +38,16 @@ interface CachedTask {
   bucketName?: string;
   priority?: string;
   labels?: string;
+  createdBy?: string;
+  createdAt?: string;
+  dueDate?: string;
+  isRecurring?: boolean;
+  isLate?: boolean;
+  completedAt?: string;
+  executedBy?: string;
+  checklistDone?: string;
+  checklistTotal?: string;
+  description?: string;
 }
 
 function loadCachedTasks(): Task[] | null {
@@ -50,6 +60,9 @@ function loadCachedTasks(): Task[] | null {
       ...t,
       start: new Date(t.start),
       end: new Date(t.end),
+      createdAt: t.createdAt ? new Date(t.createdAt) : undefined,
+      dueDate: t.dueDate ? new Date(t.dueDate) : undefined,
+      completedAt: t.completedAt ? new Date(t.completedAt) : undefined,
     }));
   } catch {
     return null;
@@ -69,6 +82,16 @@ function saveTasksToCache(tasks: Task[]) {
       bucketName: t.bucketName,
       priority: t.priority,
       labels: t.labels,
+      createdBy: t.createdBy,
+      createdAt: t.createdAt?.toISOString(),
+      dueDate: t.dueDate?.toISOString(),
+      isRecurring: t.isRecurring,
+      isLate: t.isLate,
+      completedAt: t.completedAt?.toISOString(),
+      executedBy: t.executedBy,
+      checklistDone: t.checklistDone,
+      checklistTotal: t.checklistTotal,
+      description: t.description,
     }));
     sessionStorage.setItem(CACHE_KEY, JSON.stringify(data));
   } catch {
