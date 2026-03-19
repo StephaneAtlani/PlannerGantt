@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { Task } from "@/lib/parse-xlsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,17 +15,36 @@ export interface GanttDisplayOptions {
   showPriority?: boolean;
   showBucket?: boolean;
   showLabels?: boolean;
+  showProgress?: boolean;
+  colorBy?: "bucket" | "priority" | "assignedTo" | "progress" | "none";
+  paletteTheme?: "default" | "pastel" | "contrast" | "earth";
 }
 
-const BAR_COLORS = [
-  "#3b82f6", "#8b5cf6", "#ec4899", "#f43f5e", "#f97316", "#eab308", "#22c55e", "#14b8a6",
-];
+const PALETTES: Record<
+  NonNullable<GanttDisplayOptions["paletteTheme"]>,
+  string[]
+> = {
+  default: ["#3b82f6", "#8b5cf6", "#ec4899", "#f43f5e", "#f97316", "#eab308", "#22c55e", "#14b8a6"],
+  pastel: ["#60a5fa", "#a78bfa", "#f9a8d4", "#fb7185", "#fdba74", "#fde68a", "#86efac", "#5eead4"],
+  contrast: ["#1d4ed8", "#6d28d9", "#be185d", "#be123c", "#c2410c", "#a16207", "#15803d", "#0f766e"],
+  earth: ["#3f6212", "#65a30d", "#b45309", "#92400e", "#7c2d12", "#5b21b6", "#1f2937", "#0f766e"],
+};
 
-function barColorFromKey(key: string | undefined): string | undefined {
+function barColorFromKey(
+  key: string | undefined,
+  paletteTheme: NonNullable<GanttDisplayOptions["paletteTheme"]> = "default"
+): string | undefined {
   if (!key) return undefined;
+  const palette = PALETTES[paletteTheme] ?? PALETTES.default;
   let n = 0;
   for (let i = 0; i < key.length; i++) n = (n * 31 + key.charCodeAt(i)) >>> 0;
-  return BAR_COLORS[n % BAR_COLORS.length];
+  return palette[n % palette.length];
+}
+
+function progressToColor(progress: number): string {
+  if (progress < 30) return "#ef4444";
+  if (progress < 70) return "#f59e0b";
+  return "#22c55e";
 }
 
 interface GanttTaskPayload {
@@ -56,6 +75,7 @@ interface GanttTaskPayload {
 function buildTaskDisplayName(t: Task, opts: GanttDisplayOptions): string {
   const parts: string[] = [t.name];
   const extras: string[] = [];
+  if (opts.showProgress) extras.push(`${Math.round(t.progress ?? 0)}%`);
   if (opts.showAssignments && t.assignedTo) extras.push(t.assignedTo);
   if (opts.showPriority && t.priority) extras.push(t.priority);
   if (opts.showBucket && t.bucketName) extras.push(t.bucketName);
@@ -65,14 +85,30 @@ function buildTaskDisplayName(t: Task, opts: GanttDisplayOptions): string {
 }
 
 function toGanttTask(t: Task, displayOptions: GanttDisplayOptions): GanttTaskPayload {
-  const barColor = barColorFromKey(t.bucketName ?? t.assignedTo ?? t.priority);
+  const progress = Math.round(t.progress ?? 0);
+  const colorBy = displayOptions.colorBy ?? "bucket";
+  const paletteTheme = displayOptions.paletteTheme ?? "default";
+  const colorKey =
+    colorBy === "bucket"
+      ? t.bucketName
+      : colorBy === "priority"
+        ? t.priority
+        : colorBy === "assignedTo"
+          ? t.assignedTo
+          : undefined;
+  const barColor =
+    colorBy === "progress"
+      ? progressToColor(progress)
+      : colorBy === "none"
+        ? undefined
+        : barColorFromKey(colorKey, paletteTheme);
   return {
     id: t.id,
     name: buildTaskDisplayName(t, displayOptions),
     originalName: t.name,
     start: format(t.start, "yyyy-MM-dd"),
     end: format(t.end, "yyyy-MM-dd"),
-    progress: t.progress ?? 0,
+    progress,
     assignedTo: t.assignedTo,
     bucketName: t.bucketName,
     priority: t.priority,
@@ -287,9 +323,30 @@ export function GanttChart({
   const showP = displayOptions?.showPriority ?? true;
   const showB = displayOptions?.showBucket ?? true;
   const showL = displayOptions?.showLabels ?? true;
+  const showProgress = displayOptions?.showProgress ?? true;
+  const colorBy = displayOptions?.colorBy ?? "bucket";
+  const paletteTheme = displayOptions?.paletteTheme ?? "default";
+  const taskRefreshKey = useMemo(
+    () =>
+      tasks
+        .map(
+          (t) =>
+            `${t.id}|${t.name}|${t.start.getTime()}|${t.end.getTime()}|${Math.round(t.progress ?? 0)}|${t.assignedTo ?? ""}|${t.priority ?? ""}|${t.bucketName ?? ""}|${t.labels ?? ""}`
+        )
+        .join("||"),
+    [tasks]
+  );
   useEffect(() => {
     if (!ganttRef.current || !tasks.length) return;
-    const opts = { showAssignments: showA, showPriority: showP, showBucket: showB, showLabels: showL };
+    const opts = {
+      showAssignments: showA,
+      showPriority: showP,
+      showBucket: showB,
+      showLabels: showL,
+      showProgress,
+      colorBy,
+      paletteTheme,
+    };
     const ganttTasks = tasks.map((t) => toGanttTask(t, opts));
     containerRef.current?.classList.add("gantt-no-transition");
     ganttRef.current.refresh(ganttTasks);
@@ -300,7 +357,7 @@ export function GanttChart({
       containerRef.current && forceBarLabelsRight(containerRef.current);
     }, 50);
     return () => clearTimeout(t);
-  }, [showA, showP, showB, showL]);
+  }, [showA, showP, showB, showL, showProgress, colorBy, paletteTheme, taskRefreshKey]);
 
   if (!tasks.length) return null;
 

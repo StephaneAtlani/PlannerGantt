@@ -12,7 +12,7 @@ import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -109,7 +109,27 @@ const defaultDisplayOptions: GanttDisplayOptions = {
   showPriority: true,
   showBucket: true,
   showLabels: true,
+  showProgress: true,
+  colorBy: "bucket",
+  paletteTheme: "default",
 };
+
+const PALETTES: Record<NonNullable<GanttDisplayOptions["paletteTheme"]>, string[]> = {
+  default: ["#3b82f6", "#8b5cf6", "#ec4899", "#f43f5e", "#f97316", "#eab308", "#22c55e", "#14b8a6"],
+  pastel: ["#60a5fa", "#a78bfa", "#f9a8d4", "#fb7185", "#fdba74", "#fde68a", "#86efac", "#5eead4"],
+  contrast: ["#1d4ed8", "#6d28d9", "#be185d", "#be123c", "#c2410c", "#a16207", "#15803d", "#0f766e"],
+  earth: ["#3f6212", "#65a30d", "#b45309", "#92400e", "#7c2d12", "#5b21b6", "#1f2937", "#0f766e"],
+};
+
+function colorFromValue(
+  value: string,
+  paletteTheme: NonNullable<GanttDisplayOptions["paletteTheme"]>
+): string {
+  const palette = PALETTES[paletteTheme] ?? PALETTES.default;
+  let n = 0;
+  for (let i = 0; i < value.length; i++) n = (n * 31 + value.charCodeAt(i)) >>> 0;
+  return palette[n % palette.length];
+}
 
 export type SortBy = "start" | "end" | "name" | "assignedTo" | "priority" | "bucket";
 export type SortOrder = "asc" | "desc";
@@ -154,6 +174,33 @@ export default function Home() {
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
 
   const sortedTasks = useMemo(() => sortTasks(tasks, sortBy, sortOrder), [tasks, sortBy, sortOrder]);
+  const colorLegendItems = useMemo(() => {
+    const colorBy = displayOptions.colorBy ?? "bucket";
+    const theme = displayOptions.paletteTheme ?? "default";
+    if (colorBy === "none") return [];
+    if (colorBy === "progress") {
+      return [
+        { label: "0-29% (Faible)", color: "#ef4444" },
+        { label: "30-69% (Moyenne)", color: "#f59e0b" },
+        { label: "70-100% (Élevée)", color: "#22c55e" },
+      ];
+    }
+    const values = new Set<string>();
+    for (const t of sortedTasks) {
+      const v =
+        colorBy === "bucket"
+          ? t.bucketName
+          : colorBy === "priority"
+            ? t.priority
+            : t.assignedTo;
+      if (v) values.add(v);
+      if (values.size >= 8) break;
+    }
+    return Array.from(values).map((v) => ({
+      label: v,
+      color: colorFromValue(v, theme),
+    }));
+  }, [sortedTasks, displayOptions.colorBy, displayOptions.paletteTheme]);
 
   const loadFromCache = useCallback(() => {
     const cached = loadCachedTasks();
@@ -280,6 +327,64 @@ export default function Home() {
                   />
                   Étiquettes
                 </Label>
+                <Label className="flex items-center gap-2 text-sm">
+                  <Switch
+                    checked={displayOptions.showProgress ?? true}
+                    onCheckedChange={(v) =>
+                      setDisplayOptions((o) => ({ ...o, showProgress: v }))
+                    }
+                  />
+                  Progression
+                </Label>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="color-by" className="text-sm whitespace-nowrap">
+                    Couleurs par
+                  </Label>
+                  <Select
+                    value={displayOptions.colorBy ?? "bucket"}
+                    onValueChange={(v) =>
+                      setDisplayOptions((o) => ({
+                        ...o,
+                        colorBy: v as NonNullable<GanttDisplayOptions["colorBy"]>,
+                      }))
+                    }
+                  >
+                    <SelectTrigger id="color-by" className="w-40">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bucket">Bucket</SelectItem>
+                      <SelectItem value="priority">Priorité</SelectItem>
+                      <SelectItem value="assignedTo">Affectation</SelectItem>
+                      <SelectItem value="progress">Progression</SelectItem>
+                      <SelectItem value="none">Aucune</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="palette-theme" className="text-sm whitespace-nowrap">
+                    Thématique
+                  </Label>
+                  <Select
+                    value={displayOptions.paletteTheme ?? "default"}
+                    onValueChange={(v) =>
+                      setDisplayOptions((o) => ({
+                        ...o,
+                        paletteTheme: v as NonNullable<GanttDisplayOptions["paletteTheme"]>,
+                      }))
+                    }
+                  >
+                    <SelectTrigger id="palette-theme" className="w-36">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">Standard</SelectItem>
+                      <SelectItem value="pastel">Pastel</SelectItem>
+                      <SelectItem value="contrast">Contraste</SelectItem>
+                      <SelectItem value="earth">Nature</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="flex items-center gap-2">
                   <Label htmlFor="sort-by" className="text-sm whitespace-nowrap">
                     Trier par
@@ -326,19 +431,27 @@ export default function Home() {
                   </Select>
                 </div>
               </div>
+              <div className="flex flex-wrap items-center gap-2 rounded-md border border-border/60 bg-background/70 px-2 py-1">
+                <span className="text-xs text-muted-foreground whitespace-nowrap">Légende couleurs :</span>
+                {(displayOptions.colorBy ?? "bucket") === "none" ? (
+                  <span className="text-xs text-muted-foreground">Aucune coloration active</span>
+                ) : (
+                  colorLegendItems.map((item) => (
+                    <span key={item.label} className="inline-flex items-center gap-1.5 rounded border border-border/60 px-2 py-0.5 text-xs">
+                      <span className="size-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                      {item.label}
+                    </span>
+                  ))
+                )}
+              </div>
               <Dialog open={fullscreenOpen} onOpenChange={setFullscreenOpen}>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="rounded-lg shrink-0"
-                  onClick={() => setFullscreenOpen(true)}
-                >
+                <DialogTrigger render={<Button variant="outline" size="sm" className="rounded-lg shrink-0" />}>
                   <Maximize2 className="size-4 mr-1" />
                   Plein écran
-                </Button>
+                </DialogTrigger>
                 <DialogContent
-                  className="fixed inset-0 z-50 max-w-none w-screen h-screen rounded-none border-0 flex flex-col p-0"
-                  showCloseButton={true}
+                  className="fixed inset-0 top-0 left-0 z-50 w-screen h-screen max-w-none sm:max-w-none translate-x-0 translate-y-0 rounded-none border-0 flex flex-col p-0"
+                  showCloseButton={false}
                 >
                   <DialogTitle className="sr-only">Gantt en plein écran</DialogTitle>
                   <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 bg-muted/40 px-4 py-3">
@@ -379,6 +492,64 @@ export default function Home() {
                         />
                         Étiquettes
                       </Label>
+                      <Label className="flex items-center gap-2 text-sm">
+                        <Switch
+                          checked={displayOptions.showProgress ?? true}
+                          onCheckedChange={(v) =>
+                            setDisplayOptions((o) => ({ ...o, showProgress: v }))
+                          }
+                        />
+                        Progression
+                      </Label>
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="color-by-fs" className="text-sm whitespace-nowrap">
+                          Couleurs par
+                        </Label>
+                        <Select
+                          value={displayOptions.colorBy ?? "bucket"}
+                          onValueChange={(v) =>
+                            setDisplayOptions((o) => ({
+                              ...o,
+                              colorBy: v as NonNullable<GanttDisplayOptions["colorBy"]>,
+                            }))
+                          }
+                        >
+                          <SelectTrigger id="color-by-fs" className="w-40">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="bucket">Bucket</SelectItem>
+                            <SelectItem value="priority">Priorité</SelectItem>
+                            <SelectItem value="assignedTo">Affectation</SelectItem>
+                            <SelectItem value="progress">Progression</SelectItem>
+                            <SelectItem value="none">Aucune</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="palette-theme-fs" className="text-sm whitespace-nowrap">
+                          Thématique
+                        </Label>
+                        <Select
+                          value={displayOptions.paletteTheme ?? "default"}
+                          onValueChange={(v) =>
+                            setDisplayOptions((o) => ({
+                              ...o,
+                              paletteTheme: v as NonNullable<GanttDisplayOptions["paletteTheme"]>,
+                            }))
+                          }
+                        >
+                          <SelectTrigger id="palette-theme-fs" className="w-36">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="default">Standard</SelectItem>
+                            <SelectItem value="pastel">Pastel</SelectItem>
+                            <SelectItem value="contrast">Contraste</SelectItem>
+                            <SelectItem value="earth">Nature</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                       <div className="flex items-center gap-2">
                         <Label htmlFor="sort-by-fs" className="text-sm whitespace-nowrap">
                           Trier par
@@ -425,15 +596,23 @@ export default function Home() {
                         </Select>
                       </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setFullscreenOpen(false)}
-                      className="shrink-0 rounded-lg"
-                    >
+                    <div className="flex flex-wrap items-center gap-2 rounded-md border border-border/60 bg-background/70 px-2 py-1">
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">Légende couleurs :</span>
+                      {(displayOptions.colorBy ?? "bucket") === "none" ? (
+                        <span className="text-xs text-muted-foreground">Aucune coloration active</span>
+                      ) : (
+                        colorLegendItems.map((item) => (
+                          <span key={item.label} className="inline-flex items-center gap-1.5 rounded border border-border/60 px-2 py-0.5 text-xs">
+                            <span className="size-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                            {item.label}
+                          </span>
+                        ))
+                      )}
+                    </div>
+                    <DialogClose render={<Button variant="ghost" size="sm" className="shrink-0 rounded-lg" />}>
                       <XIcon className="size-4 mr-1" />
                       Fermer
-                    </Button>
+                    </DialogClose>
                   </div>
                   <div className="flex-1 min-h-0 overflow-hidden">
                     <GanttChart
