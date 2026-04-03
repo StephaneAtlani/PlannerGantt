@@ -5,6 +5,7 @@ import type { Task } from "@/lib/parse-xlsx";
 import {
   PLANNER_PROGRESS_COLORS,
   PLANNER_PROGRESS_LABEL_FR,
+  barColorForProgressLikeText,
   type PlannerProgressStatus,
 } from "@/lib/planner-progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +22,8 @@ export interface GanttDisplayOptions {
   showBucket?: boolean;
   showLabels?: boolean;
   showProgress?: boolean;
+  /** Affiche « début → fin » après les métadonnées sur le libellé de barre. */
+  showStartEndDates?: boolean;
   colorBy?: "bucket" | "priority" | "assignedTo" | "progress" | "none";
   paletteTheme?: "default" | "pastel" | "contrast" | "earth";
 }
@@ -29,15 +32,16 @@ const PALETTES: Record<
   NonNullable<GanttDisplayOptions["paletteTheme"]>,
   string[]
 > = {
+  // Aucun hex en commun avec PLANNER_PROGRESS_COLORS (évite barres identiques selon le mode couleur)
   default: [
     "#2563eb",
     "#c026d3",
     "#dc2626",
-    "#ea580c",
+    "#c2410c",
     "#ca8a04",
-    "#16a34a",
-    "#0d9488",
-    "#7c3aed",
+    "#22c55e",
+    "#14b8a6",
+    "#a855f7",
   ],
   pastel: [
     "#93c5fd",
@@ -130,8 +134,12 @@ function buildTaskDisplayName(t: Task, opts: GanttDisplayOptions): string {
   if (opts.showPriority && t.priority) extras.push(t.priority);
   if (opts.showBucket && t.bucketName) extras.push(t.bucketName);
   if (opts.showLabels && t.labels) extras.push(t.labels);
-  if (extras.length) parts.push(extras.join(" · "));
-  return parts.join(" — ");
+  let line = extras.length ? `${parts[0]} — ${extras.join(" · ")}` : parts[0];
+  if (opts.showStartEndDates) {
+    const dr = `${format(t.start, "d MMM yyyy", { locale: fr })} → ${format(t.end, "d MMM yyyy", { locale: fr })}`;
+    line = `${line} | ${dr}`;
+  }
+  return line;
 }
 
 function toGanttTask(t: Task, displayOptions: GanttDisplayOptions): GanttTaskPayload {
@@ -153,7 +161,7 @@ function toGanttTask(t: Task, displayOptions: GanttDisplayOptions): GanttTaskPay
         : progressToPaletteColor(progress, paletteTheme)
       : colorBy === "none"
         ? undefined
-        : barColorFromKey(colorKey, paletteTheme);
+        : barColorForProgressLikeText(colorKey) ?? barColorFromKey(colorKey, paletteTheme);
   return {
     id: t.id,
     name: buildTaskDisplayName(t, displayOptions),
@@ -183,6 +191,7 @@ function toGanttTask(t: Task, displayOptions: GanttDisplayOptions): GanttTaskPay
 
 const LABEL_SEP = " — ";
 const META_SEP = " · ";
+const DATE_SUFFIX_SEP = " | ";
 const LABEL_COLORS = ["var(--gantt-assignment)", "var(--gantt-priority)", "var(--gantt-bucket)", "var(--gantt-labels)"] as const;
 
 /** Colorise le nom + affectation (bleu), priorité (orange), bucket (vert), étiquettes (violet) — barres et colonne gauche (.bar-label.big) */
@@ -191,22 +200,38 @@ function colorBarLabels(container: HTMLElement) {
     if (textEl.querySelector("tspan")) return; // déjà traité
     const full = (textEl.textContent ?? "").trim();
     if (!full) return;
-    const idx = full.indexOf(LABEL_SEP);
-    const name = idx >= 0 ? full.slice(0, idx).trim() : full;
-    const meta = idx >= 0 ? full.slice(idx + LABEL_SEP.length).trim() : "";
+
+    let datePart = "";
+    let main = full;
+    const pipeIdx = full.lastIndexOf(DATE_SUFFIX_SEP);
+    if (pipeIdx >= 0) {
+      main = full.slice(0, pipeIdx).trim();
+      datePart = full.slice(pipeIdx + DATE_SUFFIX_SEP.length).trim();
+    }
+
+    const idx = main.indexOf(LABEL_SEP);
+    const name = idx >= 0 ? main.slice(0, idx).trim() : main;
+    const meta = idx >= 0 ? main.slice(idx + LABEL_SEP.length).trim() : "";
     textEl.textContent = "";
     const tspanName = document.createElementNS("http://www.w3.org/2000/svg", "tspan");
     tspanName.setAttribute("fill", "var(--g-text-dark)");
     tspanName.textContent = name;
     textEl.appendChild(tspanName);
-    if (!meta) return;
-    const parts = meta.split(META_SEP).map((s) => s.trim()).filter(Boolean);
-    parts.forEach((part, i) => {
-      const tspan = document.createElementNS("http://www.w3.org/2000/svg", "tspan");
-      tspan.setAttribute("fill", LABEL_COLORS[Math.min(i, LABEL_COLORS.length - 1)]);
-      tspan.textContent = (i === 0 ? LABEL_SEP : META_SEP) + part;
-      textEl.appendChild(tspan);
-    });
+    if (meta) {
+      const parts = meta.split(META_SEP).map((s) => s.trim()).filter(Boolean);
+      parts.forEach((part, i) => {
+        const tspan = document.createElementNS("http://www.w3.org/2000/svg", "tspan");
+        tspan.setAttribute("fill", LABEL_COLORS[Math.min(i, LABEL_COLORS.length - 1)]);
+        tspan.textContent = (i === 0 ? LABEL_SEP : META_SEP) + part;
+        textEl.appendChild(tspan);
+      });
+    }
+    if (datePart) {
+      const tspanDate = document.createElementNS("http://www.w3.org/2000/svg", "tspan");
+      tspanDate.setAttribute("fill", "var(--gantt-dates)");
+      tspanDate.textContent = DATE_SUFFIX_SEP + datePart;
+      textEl.appendChild(tspanDate);
+    }
   });
 }
 
@@ -380,6 +405,7 @@ export function GanttChart({
   const showB = displayOptions?.showBucket ?? true;
   const showL = displayOptions?.showLabels ?? true;
   const showProgress = displayOptions?.showProgress ?? true;
+  const showStartEndDates = displayOptions?.showStartEndDates ?? false;
   const colorBy = displayOptions?.colorBy ?? "bucket";
   const paletteTheme = displayOptions?.paletteTheme ?? "default";
   const taskRefreshKey = useMemo(
@@ -400,6 +426,7 @@ export function GanttChart({
       showBucket: showB,
       showLabels: showL,
       showProgress,
+      showStartEndDates,
       colorBy,
       paletteTheme,
     };
@@ -413,7 +440,7 @@ export function GanttChart({
       containerRef.current && forceBarLabelsRight(containerRef.current);
     }, 50);
     return () => clearTimeout(t);
-  }, [showA, showP, showB, showL, showProgress, colorBy, paletteTheme, taskRefreshKey]);
+  }, [showA, showP, showB, showL, showProgress, showStartEndDates, colorBy, paletteTheme, taskRefreshKey]);
 
   if (!tasks.length) return null;
 

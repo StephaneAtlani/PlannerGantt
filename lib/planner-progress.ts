@@ -1,24 +1,51 @@
-/** États de la colonne « Progress » (export Microsoft Planner / liste déroulante). */
+/** États de la colonne « Progress » (texte métier Excel / Planner). */
 
 export type PlannerProgressStatus =
   | "notStarted"
+  | "todo"
+  | "blocked"
   | "inProgress"
   | "transmittedForValidation"
-  | "completed";
+  | "toValidate"
+  | "completed"
+  | "done";
 
-/** Couleurs contrastées : gris / orange « en cours » / violet « transmis direction » / vert terminé. */
+/** Ordre d’affichage légende (cohérent avec le workflow). */
+export const PLANNER_PROGRESS_ORDER: PlannerProgressStatus[] = [
+  "notStarted",
+  "todo",
+  "blocked",
+  "inProgress",
+  "transmittedForValidation",
+  "toValidate",
+  "completed",
+  "done",
+];
+
+/**
+ * Couleurs fixes par statut — jamais réutilisées dans les palettes Gantt (bucket, etc.).
+ * Chaque état a une teinte différente (gris / violet / bleu / orange / rose / rouge / verts distincts).
+ */
 export const PLANNER_PROGRESS_COLORS: Record<PlannerProgressStatus, string> = {
   notStarted: "#64748b",
+  todo: "#9333ea",
+  blocked: "#2563eb",
   inProgress: "#ea580c",
-  transmittedForValidation: "#7c3aed",
-  completed: "#16a34a",
+  transmittedForValidation: "#eab308",
+  toValidate: "#dc2626",
+  completed: "#15803d",
+  done: "#0d9488",
 };
 
 export const PLANNER_PROGRESS_LABEL_FR: Record<PlannerProgressStatus, string> = {
   notStarted: "Pas commencé",
+  todo: "À faire",
+  blocked: "Bloqué",
   inProgress: "En cours",
   transmittedForValidation: "Transmis direction pour validation",
+  toValidate: "À valider",
   completed: "Terminé",
+  done: "Fini",
 };
 
 function norm(s: string): string {
@@ -32,17 +59,35 @@ function norm(s: string): string {
     .trim();
 }
 
+function matchesBlocked(s: string): boolean {
+  return s.includes("bloque") || s.includes("blocked");
+}
+
+/** « Transmis … direction » : testé avant « en cours » pour éviter toute confusion. */
+function matchesTransmittedForValidation(s: string): boolean {
+  return s.includes("transmis") && s.includes("direction");
+}
+
+function matchesToValidate(s: string): boolean {
+  return s.includes("a valider") || s.includes("to validate");
+}
+
 const NOT_STARTED = new Set([
   "not started",
   "notstarted",
   "pas commence",
   "pas commencé",
   "non commence",
+  "not start",
+]);
+
+/** « À faire » = todo (violet), pas confondu avec « pas commencé ». */
+const TODO = new Set([
   "a faire",
   "afaire",
   "todo",
   "to do",
-  "not start",
+  "tache a faire",
 ]);
 
 const IN_PROGRESS = new Set([
@@ -54,26 +99,20 @@ const IN_PROGRESS = new Set([
   "commencé",
 ]);
 
-/** Libellés métier distincts d’« En cours » (ex. workflow validation direction). */
-function matchesTransmittedForValidation(s: string): boolean {
-  if (s.includes("transmis") && s.includes("direction") && s.includes("validation")) return true;
-  if (s.includes("transmis direction")) return true;
-  return false;
-}
-
 const COMPLETED = new Set([
   "completed",
   "complete",
   "termine",
   "terminé",
   "terminee",
-  "fini",
+  "achevé",
+  "acheve",
   "fait",
   "done",
   "closed",
-  "achevé",
-  "acheve",
 ]);
+
+const DONE_FINI = new Set(["fini"]);
 
 function statusFromNumber(p: number): PlannerProgressStatus {
   if (p <= 0) return "notStarted";
@@ -81,10 +120,6 @@ function statusFromNumber(p: number): PlannerProgressStatus {
   return "inProgress";
 }
 
-/**
- * Interprète la cellule Progress : texte Planner (Not started / In progress / Completed),
- * nombre ou pourcentage texte. Retourne un % pour la barre Gantt et un état discret si possible.
- */
 export function parseProgressColumnValue(v: unknown): {
   progress?: number;
   progressStatus?: PlannerProgressStatus;
@@ -101,12 +136,20 @@ export function parseProgressColumnValue(v: unknown): {
     if (!raw) return {};
 
     const s = norm(raw);
-    if (NOT_STARTED.has(s)) return { progress: 0, progressStatus: "notStarted" };
+
+    if (matchesBlocked(s)) return { progress: 25, progressStatus: "blocked" };
     if (matchesTransmittedForValidation(s)) {
       return { progress: 65, progressStatus: "transmittedForValidation" };
     }
-    if (IN_PROGRESS.has(s)) return { progress: 50, progressStatus: "inProgress" };
+    if (matchesToValidate(s)) return { progress: 72, progressStatus: "toValidate" };
+
+    if (TODO.has(s)) return { progress: 8, progressStatus: "todo" };
+    if (NOT_STARTED.has(s)) return { progress: 0, progressStatus: "notStarted" };
+
+    if (DONE_FINI.has(s)) return { progress: 100, progressStatus: "done" };
     if (COMPLETED.has(s)) return { progress: 100, progressStatus: "completed" };
+
+    if (IN_PROGRESS.has(s)) return { progress: 50, progressStatus: "inProgress" };
 
     const stripped = raw.replace(/%/g, "").replace(",", ".").trim();
     const p = parseFloat(stripped);
@@ -117,4 +160,12 @@ export function parseProgressColumnValue(v: unknown): {
   }
 
   return {};
+}
+
+/** Si le texte (bucket, priorité, etc.) est un libellé de statut Progress connu → couleur fixe (évite collisions de hash). */
+export function barColorForProgressLikeText(raw: string | undefined): string | undefined {
+  if (!raw?.trim()) return undefined;
+  const { progressStatus } = parseProgressColumnValue(raw);
+  if (!progressStatus) return undefined;
+  return PLANNER_PROGRESS_COLORS[progressStatus];
 }

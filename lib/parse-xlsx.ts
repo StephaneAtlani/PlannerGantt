@@ -28,8 +28,15 @@ export interface Task {
 const EXCEL_EPOCH = new Date(1899, 11, 30);
 
 function excelSerialToDate(serial: number): Date {
-  const utc = EXCEL_EPOCH.getTime() + serial * 86400000;
+  const whole = Math.floor(serial);
+  const frac = serial - whole;
+  const utc = EXCEL_EPOCH.getTime() + whole * 86400000 + frac * 86400000;
   return new Date(utc);
+}
+
+/** Séries Excel : jours ~ 1–500 000 ; timestamps JS en ms >> 1e11. */
+function isLikelyExcelSerial(n: number): boolean {
+  return n >= 1 && n < 5_000_000 && n < 1e11;
 }
 
 /**
@@ -74,10 +81,20 @@ function parseLocaleDateString(raw: string): Date | null {
 }
 
 function toDate(value: unknown): Date | null {
-  if (value instanceof Date) return value;
+  if (value instanceof Date) {
+    return isNaN(value.getTime()) ? null : value;
+  }
   if (typeof value === "number") {
-    if (value > 100000) return excelSerialToDate(value);
-    return new Date(value);
+    if (!Number.isFinite(value)) return null;
+    if (value > 1e11) {
+      const d = new Date(value);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    if (isLikelyExcelSerial(value)) {
+      return excelSerialToDate(value);
+    }
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? null : d;
   }
   if (typeof value === "string") {
     const raw = value.trim();
@@ -137,7 +154,13 @@ const BUCKET_KEYS = ["nom du compartiment", "bucket name", "bucket", "catégorie
 const PRIORITY_KEYS = ["priority", "priorité", "priorite"];
 const LABELS_KEYS = ["labels", "étiquettes", "etiquettes", "tags", "label"];
 const CREATED_BY_KEYS = ["cree par", "créé par", "created by", "author"];
-const CREATED_AT_KEYS = ["date de creation", "date de création", "created at", "creation date"];
+const CREATED_AT_KEYS = [
+  "created date",
+  "date de creation",
+  "date de création",
+  "created at",
+  "creation date",
+];
 const DUE_DATE_KEYS = ["date d echeance", "date d'échéance", "date d’échéance", "due date", "echeance", "échéance"];
 const RECURRING_KEYS = ["est periodique", "est périodique", "periodique", "périodique", "is recurring", "recurring"];
 const LATE_KEYS = ["en retard", "is late", "retard"];

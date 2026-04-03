@@ -27,6 +27,8 @@ import { parseXlsxFile } from "@/lib/parse-xlsx";
 import {
   PLANNER_PROGRESS_COLORS,
   PLANNER_PROGRESS_LABEL_FR,
+  PLANNER_PROGRESS_ORDER,
+  barColorForProgressLikeText,
   type PlannerProgressStatus,
 } from "@/lib/planner-progress";
 import { Maximize2, XIcon } from "lucide-react";
@@ -117,6 +119,7 @@ const defaultDisplayOptions: GanttDisplayOptions = {
   showBucket: true,
   showLabels: true,
   showProgress: true,
+  showStartEndDates: false,
   colorBy: "bucket",
   paletteTheme: "default",
 };
@@ -126,11 +129,11 @@ const PALETTES: Record<NonNullable<GanttDisplayOptions["paletteTheme"]>, string[
     "#2563eb",
     "#c026d3",
     "#dc2626",
-    "#ea580c",
+    "#c2410c",
     "#ca8a04",
-    "#16a34a",
-    "#0d9488",
-    "#7c3aed",
+    "#22c55e",
+    "#14b8a6",
+    "#a855f7",
   ],
   pastel: [
     "#93c5fd",
@@ -237,14 +240,11 @@ export default function Home() {
     const theme = displayOptions.paletteTheme ?? "default";
     if (colorBy === "none") return [];
     if (colorBy === "progress") {
-      return (
-        [
-          "notStarted",
-          "inProgress",
-          "transmittedForValidation",
-          "completed",
-        ] as const
-      ).map((key) => ({
+      const seen = new Set<PlannerProgressStatus>();
+      for (const t of sortedTasks) {
+        if (t.progressStatus) seen.add(t.progressStatus);
+      }
+      return PLANNER_PROGRESS_ORDER.filter((k) => seen.has(k)).map((key) => ({
         label: PLANNER_PROGRESS_LABEL_FR[key],
         color: PLANNER_PROGRESS_COLORS[key],
       }));
@@ -262,7 +262,7 @@ export default function Home() {
     }
     return Array.from(values).map((v) => ({
       label: v,
-      color: colorFromValue(v, theme),
+      color: barColorForProgressLikeText(v) ?? colorFromValue(v, theme),
     }));
   }, [sortedTasks, displayOptions.colorBy, displayOptions.paletteTheme]);
 
@@ -399,6 +399,15 @@ export default function Home() {
                     }
                   />
                   Progression
+                </Label>
+                <Label className="flex items-center gap-2 text-sm">
+                  <Switch
+                    checked={displayOptions.showStartEndDates ?? false}
+                    onCheckedChange={(v) =>
+                      setDisplayOptions((o) => ({ ...o, showStartEndDates: v }))
+                    }
+                  />
+                  Dates début / fin
                 </Label>
                 <div className="flex items-center gap-2">
                   <Label htmlFor="color-by" className="text-sm whitespace-nowrap">
@@ -568,6 +577,15 @@ export default function Home() {
                           }
                         />
                         Progression
+                      </Label>
+                      <Label className="flex items-center gap-2 text-sm">
+                        <Switch
+                          checked={displayOptions.showStartEndDates ?? false}
+                          onCheckedChange={(v) =>
+                            setDisplayOptions((o) => ({ ...o, showStartEndDates: v }))
+                          }
+                        />
+                        Dates début / fin
                       </Label>
                       <div className="flex items-center gap-2">
                         <Label htmlFor="color-by-fs" className="text-sm whitespace-nowrap">
