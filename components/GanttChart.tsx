@@ -2,6 +2,11 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import type { Task } from "@/lib/parse-xlsx";
+import {
+  PLANNER_PROGRESS_COLORS,
+  PLANNER_PROGRESS_LABEL_FR,
+  type PlannerProgressStatus,
+} from "@/lib/planner-progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
@@ -41,10 +46,15 @@ function barColorFromKey(
   return palette[n % palette.length];
 }
 
-function progressToColor(progress: number): string {
-  if (progress < 30) return "#ef4444";
-  if (progress < 70) return "#f59e0b";
-  return "#22c55e";
+/** Couleur barre selon la colonne Progress (%) — dégradé dans la palette de la thématique (faible → élevé). */
+function progressToPaletteColor(
+  progress: number,
+  paletteTheme: NonNullable<GanttDisplayOptions["paletteTheme"]>
+): string {
+  const palette = PALETTES[paletteTheme] ?? PALETTES.default;
+  const t = Math.max(0, Math.min(100, progress)) / 100;
+  const idx = Math.round(t * (palette.length - 1));
+  return palette[idx];
 }
 
 interface GanttTaskPayload {
@@ -53,6 +63,7 @@ interface GanttTaskPayload {
   start: string;
   end: string;
   progress: number;
+  progressStatus?: PlannerProgressStatus;
   assignedTo?: string;
   bucketName?: string;
   priority?: string;
@@ -75,7 +86,10 @@ interface GanttTaskPayload {
 function buildTaskDisplayName(t: Task, opts: GanttDisplayOptions): string {
   const parts: string[] = [t.name];
   const extras: string[] = [];
-  if (opts.showProgress) extras.push(`${Math.round(t.progress ?? 0)}%`);
+  if (opts.showProgress) {
+    if (t.progressStatus) extras.push(PLANNER_PROGRESS_LABEL_FR[t.progressStatus]);
+    else if (t.progress !== undefined) extras.push(`${Math.round(t.progress)}%`);
+  }
   if (opts.showAssignments && t.assignedTo) extras.push(t.assignedTo);
   if (opts.showPriority && t.priority) extras.push(t.priority);
   if (opts.showBucket && t.bucketName) extras.push(t.bucketName);
@@ -98,7 +112,9 @@ function toGanttTask(t: Task, displayOptions: GanttDisplayOptions): GanttTaskPay
           : undefined;
   const barColor =
     colorBy === "progress"
-      ? progressToColor(progress)
+      ? t.progressStatus
+        ? PLANNER_PROGRESS_COLORS[t.progressStatus]
+        : progressToPaletteColor(progress, paletteTheme)
       : colorBy === "none"
         ? undefined
         : barColorFromKey(colorKey, paletteTheme);
@@ -109,6 +125,7 @@ function toGanttTask(t: Task, displayOptions: GanttDisplayOptions): GanttTaskPay
     start: format(t.start, "yyyy-MM-dd"),
     end: format(t.end, "yyyy-MM-dd"),
     progress,
+    progressStatus: t.progressStatus,
     assignedTo: t.assignedTo,
     bucketName: t.bucketName,
     priority: t.priority,
@@ -204,7 +221,10 @@ function buildPopupContent(
 ): string {
   const startStr = task.start;
   const endStr = task.end;
-  const parts: string[] = [`${startStr} → ${endStr}`, `Progression: ${task.progress}%`];
+  const progressStr = task.progressStatus
+    ? `Progress : ${PLANNER_PROGRESS_LABEL_FR[task.progressStatus]}`
+    : `Progression : ${task.progress}%`;
+  const parts: string[] = [`${startStr} → ${endStr}`, progressStr];
   if (displayOptions.showAssignments && task.assignedTo) {
     parts.push(`Affecté à: ${task.assignedTo}`);
   }
@@ -331,7 +351,7 @@ export function GanttChart({
       tasks
         .map(
           (t) =>
-            `${t.id}|${t.name}|${t.start.getTime()}|${t.end.getTime()}|${Math.round(t.progress ?? 0)}|${t.assignedTo ?? ""}|${t.priority ?? ""}|${t.bucketName ?? ""}|${t.labels ?? ""}`
+            `${t.id}|${t.name}|${t.start.getTime()}|${t.end.getTime()}|${Math.round(t.progress ?? 0)}|${t.progressStatus ?? ""}|${t.assignedTo ?? ""}|${t.priority ?? ""}|${t.bucketName ?? ""}|${t.labels ?? ""}`
         )
         .join("||"),
     [tasks]

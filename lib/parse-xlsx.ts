@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { parseProgressColumnValue, type PlannerProgressStatus } from "@/lib/planner-progress";
 
 export interface Task {
   id: string;
@@ -6,6 +7,8 @@ export interface Task {
   start: Date;
   end: Date;
   progress?: number;
+  /** État discret colonne Progress (Planner : pas commencé / en cours / terminé). */
+  progressStatus?: PlannerProgressStatus;
   assignedTo?: string;
   bucketName?: string;
   priority?: string;
@@ -237,17 +240,11 @@ export function parseXlsxFile(file: File): Promise<Task[]> {
           if (!start || !end || end < start) continue;
 
           let progress: number | undefined;
+          let progressStatus: PlannerProgressStatus | undefined;
           if (progressIdx >= 0) {
-            const v = row[progressIdx];
-            if (typeof v === "number") progress = Math.min(100, Math.max(0, v));
-            else if (typeof v === "string") {
-              const s = v.trim().toLowerCase();
-              if (s === "not started" || s === "pas commencé" || s === "") progress = 0;
-              else {
-                const p = parseFloat(v.replace(",", "."));
-                if (!isNaN(p)) progress = Math.min(100, Math.max(0, p));
-              }
-            }
+            const parsed = parseProgressColumnValue(row[progressIdx]);
+            if (parsed.progress !== undefined) progress = parsed.progress;
+            if (parsed.progressStatus !== undefined) progressStatus = parsed.progressStatus;
           }
 
           const assignedTo = assignedIdx >= 0 ? toText(row[assignedIdx]) : undefined;
@@ -271,6 +268,7 @@ export function parseXlsxFile(file: File): Promise<Task[]> {
             start,
             end,
             progress,
+            progressStatus,
             assignedTo,
             bucketName,
             priority,

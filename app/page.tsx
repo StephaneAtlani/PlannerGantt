@@ -24,6 +24,11 @@ import {
 } from "@/components/ui/select";
 import type { Task } from "@/lib/parse-xlsx";
 import { parseXlsxFile } from "@/lib/parse-xlsx";
+import {
+  PLANNER_PROGRESS_COLORS,
+  PLANNER_PROGRESS_LABEL_FR,
+  type PlannerProgressStatus,
+} from "@/lib/planner-progress";
 import { Maximize2, XIcon } from "lucide-react";
 
 const CACHE_KEY = "gantt-data";
@@ -34,6 +39,7 @@ interface CachedTask {
   start: string;
   end: string;
   progress?: number;
+  progressStatus?: PlannerProgressStatus;
   assignedTo?: string;
   bucketName?: string;
   priority?: string;
@@ -78,6 +84,7 @@ function saveTasksToCache(tasks: Task[]) {
       start: t.start.toISOString(),
       end: t.end.toISOString(),
       progress: t.progress,
+      progressStatus: t.progressStatus,
       assignedTo: t.assignedTo,
       bucketName: t.bucketName,
       priority: t.priority,
@@ -131,6 +138,21 @@ function colorFromValue(
   return palette[n % palette.length];
 }
 
+const COLOR_BY_LABEL: Record<NonNullable<GanttDisplayOptions["colorBy"]>, string> = {
+  bucket: "Bucket",
+  priority: "Priorité",
+  assignedTo: "Affectation",
+  progress: "Progress",
+  none: "Aucune",
+};
+
+const PALETTE_THEME_LABEL: Record<NonNullable<GanttDisplayOptions["paletteTheme"]>, string> = {
+  default: "Standard",
+  pastel: "Pastel",
+  contrast: "Contraste",
+  earth: "Nature",
+};
+
 export type SortBy = "start" | "end" | "name" | "assignedTo" | "priority" | "bucket";
 export type SortOrder = "asc" | "desc";
 
@@ -179,11 +201,12 @@ export default function Home() {
     const theme = displayOptions.paletteTheme ?? "default";
     if (colorBy === "none") return [];
     if (colorBy === "progress") {
-      return [
-        { label: "0-29% (Faible)", color: "#ef4444" },
-        { label: "30-69% (Moyenne)", color: "#f59e0b" },
-        { label: "70-100% (Élevée)", color: "#22c55e" },
-      ];
+      return (
+        ["notStarted", "inProgress", "completed"] as const
+      ).map((key) => ({
+        label: PLANNER_PROGRESS_LABEL_FR[key],
+        color: PLANNER_PROGRESS_COLORS[key],
+      }));
     }
     const values = new Set<string>();
     for (const t of sortedTasks) {
@@ -350,13 +373,15 @@ export default function Home() {
                     }
                   >
                     <SelectTrigger id="color-by" className="w-40">
-                      <SelectValue />
+                      <SelectValue>
+                        {COLOR_BY_LABEL[displayOptions.colorBy ?? "bucket"]}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="bucket">Bucket</SelectItem>
                       <SelectItem value="priority">Priorité</SelectItem>
                       <SelectItem value="assignedTo">Affectation</SelectItem>
-                      <SelectItem value="progress">Progression</SelectItem>
+                      <SelectItem value="progress">Progress</SelectItem>
                       <SelectItem value="none">Aucune</SelectItem>
                     </SelectContent>
                   </Select>
@@ -375,7 +400,9 @@ export default function Home() {
                     }
                   >
                     <SelectTrigger id="palette-theme" className="w-36">
-                      <SelectValue />
+                      <SelectValue>
+                        {PALETTE_THEME_LABEL[displayOptions.paletteTheme ?? "default"]}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="default">Standard</SelectItem>
@@ -515,13 +542,15 @@ export default function Home() {
                           }
                         >
                           <SelectTrigger id="color-by-fs" className="w-40">
-                            <SelectValue />
+                            <SelectValue>
+                              {COLOR_BY_LABEL[displayOptions.colorBy ?? "bucket"]}
+                            </SelectValue>
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="bucket">Bucket</SelectItem>
                             <SelectItem value="priority">Priorité</SelectItem>
                             <SelectItem value="assignedTo">Affectation</SelectItem>
-                            <SelectItem value="progress">Progression</SelectItem>
+                            <SelectItem value="progress">Progress</SelectItem>
                             <SelectItem value="none">Aucune</SelectItem>
                           </SelectContent>
                         </Select>
@@ -540,7 +569,9 @@ export default function Home() {
                           }
                         >
                           <SelectTrigger id="palette-theme-fs" className="w-36">
-                            <SelectValue />
+                            <SelectValue>
+                              {PALETTE_THEME_LABEL[displayOptions.paletteTheme ?? "default"]}
+                            </SelectValue>
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="default">Standard</SelectItem>
