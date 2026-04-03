@@ -238,7 +238,12 @@ export default function Home() {
     if (colorBy === "none") return [];
     if (colorBy === "progress") {
       return (
-        ["notStarted", "inProgress", "completed"] as const
+        [
+          "notStarted",
+          "inProgress",
+          "transmittedForValidation",
+          "completed",
+        ] as const
       ).map((key) => ({
         label: PLANNER_PROGRESS_LABEL_FR[key],
         color: PLANNER_PROGRESS_COLORS[key],

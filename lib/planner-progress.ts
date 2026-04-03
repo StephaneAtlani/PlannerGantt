@@ -1,17 +1,23 @@
 /** États de la colonne « Progress » (export Microsoft Planner / liste déroulante). */
 
-export type PlannerProgressStatus = "notStarted" | "inProgress" | "completed";
+export type PlannerProgressStatus =
+  | "notStarted"
+  | "inProgress"
+  | "transmittedForValidation"
+  | "completed";
 
-/** Couleurs volontairement contrastées : neutre / chaud / succès. */
+/** Couleurs contrastées : gris / orange « en cours » / violet « transmis direction » / vert terminé. */
 export const PLANNER_PROGRESS_COLORS: Record<PlannerProgressStatus, string> = {
   notStarted: "#64748b",
   inProgress: "#ea580c",
+  transmittedForValidation: "#7c3aed",
   completed: "#16a34a",
 };
 
 export const PLANNER_PROGRESS_LABEL_FR: Record<PlannerProgressStatus, string> = {
   notStarted: "Pas commencé",
   inProgress: "En cours",
+  transmittedForValidation: "Transmis direction pour validation",
   completed: "Terminé",
 };
 
@@ -47,6 +53,13 @@ const IN_PROGRESS = new Set([
   "commence",
   "commencé",
 ]);
+
+/** Libellés métier distincts d’« En cours » (ex. workflow validation direction). */
+function matchesTransmittedForValidation(s: string): boolean {
+  if (s.includes("transmis") && s.includes("direction") && s.includes("validation")) return true;
+  if (s.includes("transmis direction")) return true;
+  return false;
+}
 
 const COMPLETED = new Set([
   "completed",
@@ -89,6 +102,9 @@ export function parseProgressColumnValue(v: unknown): {
 
     const s = norm(raw);
     if (NOT_STARTED.has(s)) return { progress: 0, progressStatus: "notStarted" };
+    if (matchesTransmittedForValidation(s)) {
+      return { progress: 65, progressStatus: "transmittedForValidation" };
+    }
     if (IN_PROGRESS.has(s)) return { progress: 50, progressStatus: "inProgress" };
     if (COMPLETED.has(s)) return { progress: 100, progressStatus: "completed" };
 
