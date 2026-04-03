@@ -32,6 +32,47 @@ function excelSerialToDate(serial: number): Date {
   return new Date(utc);
 }
 
+/**
+ * Dates type export US / Planner : mois/jour/année (MM/DD/YYYY).
+ * Si le 1er nombre > 12 → interprétation jour/mois (JJ/MM).
+ * Si le 2e nombre > 12 → interprétation mois/jour (MM/JJ).
+ * Si les deux ≤ 12 (ex. 01/02/2025) → par défaut mois/jour/année.
+ */
+function parseLocaleDateString(raw: string): Date | null {
+  const m = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:\s+(\d{1,2}):(\d{2}))?$/);
+  if (!m) return null;
+  const a = parseInt(m[1], 10);
+  const b = parseInt(m[2], 10);
+  let year = parseInt(m[3], 10);
+  if (year < 100) year += 2000;
+  const hour = m[4] ? parseInt(m[4], 10) : 0;
+  const minute = m[5] ? parseInt(m[5], 10) : 0;
+
+  let month: number;
+  let day: number;
+  if (a > 12) {
+    day = a;
+    month = b;
+  } else if (b > 12) {
+    month = a;
+    day = b;
+  } else {
+    month = a;
+    day = b;
+  }
+
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const d = new Date(year, month - 1, day, hour, minute);
+  if (
+    d.getFullYear() === year &&
+    d.getMonth() === month - 1 &&
+    d.getDate() === day
+  ) {
+    return d;
+  }
+  return null;
+}
+
 function toDate(value: unknown): Date | null {
   if (value instanceof Date) return value;
   if (typeof value === "number") {
@@ -41,24 +82,8 @@ function toDate(value: unknown): Date | null {
   if (typeof value === "string") {
     const raw = value.trim();
     if (!raw) return null;
-    // Supporte explicitement les formats FR les plus fréquents: jj/mm/aaaa et jj-mm-aaaa
-    const m = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:\s+(\d{1,2}):(\d{2}))?$/);
-    if (m) {
-      const day = parseInt(m[1], 10);
-      const month = parseInt(m[2], 10);
-      let year = parseInt(m[3], 10);
-      if (year < 100) year += 2000;
-      const hour = m[4] ? parseInt(m[4], 10) : 0;
-      const minute = m[5] ? parseInt(m[5], 10) : 0;
-      const d = new Date(year, month - 1, day, hour, minute);
-      if (
-        d.getFullYear() === year &&
-        d.getMonth() === month - 1 &&
-        d.getDate() === day
-      ) {
-        return d;
-      }
-    }
+    const parsed = parseLocaleDateString(raw);
+    if (parsed) return parsed;
     const d = new Date(raw);
     return isNaN(d.getTime()) ? null : d;
   }
