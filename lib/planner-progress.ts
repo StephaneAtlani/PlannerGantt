@@ -2,11 +2,11 @@
 
 export type PlannerProgressStatus = "notStarted" | "inProgress" | "completed";
 
-/** Couleurs proches de l’UI Planner : gris / bleu clair / indigo-violet. */
+/** Couleurs volontairement contrastées : neutre / chaud / succès. */
 export const PLANNER_PROGRESS_COLORS: Record<PlannerProgressStatus, string> = {
-  notStarted: "#9ca3af",
-  inProgress: "#38bdf8",
-  completed: "#6366f1",
+  notStarted: "#64748b",
+  inProgress: "#ea580c",
+  completed: "#16a34a",
 };
 
 export const PLANNER_PROGRESS_LABEL_FR: Record<PlannerProgressStatus, string> = {

@@ -122,10 +122,46 @@ const defaultDisplayOptions: GanttDisplayOptions = {
 };
 
 const PALETTES: Record<NonNullable<GanttDisplayOptions["paletteTheme"]>, string[]> = {
-  default: ["#3b82f6", "#8b5cf6", "#ec4899", "#f43f5e", "#f97316", "#eab308", "#22c55e", "#14b8a6"],
-  pastel: ["#60a5fa", "#a78bfa", "#f9a8d4", "#fb7185", "#fdba74", "#fde68a", "#86efac", "#5eead4"],
-  contrast: ["#1d4ed8", "#6d28d9", "#be185d", "#be123c", "#c2410c", "#a16207", "#15803d", "#0f766e"],
-  earth: ["#3f6212", "#65a30d", "#b45309", "#92400e", "#7c2d12", "#5b21b6", "#1f2937", "#0f766e"],
+  default: [
+    "#2563eb",
+    "#c026d3",
+    "#dc2626",
+    "#ea580c",
+    "#ca8a04",
+    "#16a34a",
+    "#0d9488",
+    "#7c3aed",
+  ],
+  pastel: [
+    "#93c5fd",
+    "#e879f9",
+    "#fca5a5",
+    "#fdba74",
+    "#fde047",
+    "#86efac",
+    "#5eead4",
+    "#c4b5fd",
+  ],
+  contrast: [
+    "#1d4ed8",
+    "#a21caf",
+    "#b91c1c",
+    "#c2410c",
+    "#a16207",
+    "#15803d",
+    "#0f766e",
+    "#6d28d9",
+  ],
+  earth: [
+    "#854d0e",
+    "#b45309",
+    "#9a3412",
+    "#166534",
+    "#155e75",
+    "#1e3a8a",
+    "#6b21a8",
+    "#831843",
+  ],
 };
 
 function colorFromValue(
